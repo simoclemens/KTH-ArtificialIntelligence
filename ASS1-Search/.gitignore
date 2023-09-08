@@ -1,0 +1,5 @@
+# Python
+__pycache__/
+recursive-exclude * *.py[co]
+
+*.txt
