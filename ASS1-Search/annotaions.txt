@@ -1,0 +1,8 @@
+SEARCH ALGORITHM
+The algorithm should perform an alpha-beta pruning with some improvements in order to obtain a more optimized result.
+HEURISTIC FUNCTION
+The idea is to give an estimation of the most promising node at each level. A possible idea could be computing for each
+configuration the points in this way:
+P=sum(p(i)*(1/dist(f(i),posGreen)-1/dist(f(i),posRed)
+
+TO-DO LIST FOR EVERY MOVE
