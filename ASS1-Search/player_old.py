@@ -5,8 +5,9 @@ from fishing_game_core.game_tree import Node, State
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 from math import sqrt
+
 GRID_DIM = 20
-DEPTH = 4
+DEPTH = 1
 ADD_TERM = 1
 
 
@@ -68,28 +69,51 @@ class PlayerControllerMinimax(PlayerController):
         # NOTE: Don't forget to initialize the children of the current node
         #       with its compute_and_get_children() method!
 
+        # generate children from root node
+        best_move = 0
         children = initial_tree_node.compute_and_get_children()
+        """
+        # transform them into tuples to keep original index after ordering
+        children_tuples = []
+        for i, child in enumerate(children):
+            child = (child, i)
+            children_tuples.append(child)
+            
+        """
+        # order moves based on heuristic
+        #ordered_children = self.order_moves(children, True)
+        ordered_children = children
 
-        max_score = float("-inf")
+        # initialize max_score (alpha) and index
+        alpha = float("-inf")
+        beta = float("+inf")
         max_index = -1
 
-        for i,child in enumerate(children):
-            score = self.alpha_beta_pruning(child, DEPTH-1, max_score, float('+inf'), False)
-            if score > max_score:
-                max_score = score
+        # initialize transposition table
+        transposition_table = {}
+
+        # iterate over the ordered root's children
+        for i,child in enumerate(ordered_children):
+            score = self.alpha_beta_pruning(child, DEPTH-1, alpha, beta, False, transposition_table)
+            print(score)
+            if score > alpha:
+                alpha = score
                 max_index = i
 
-        return ACTION_TO_STR[max_index]
+        best_move = ordered_children[max_index].move
 
-    def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player):
+        return ACTION_TO_STR[best_move]
 
+
+    def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player, transposition_table):
         if depth == 0:
             return self.heuristicScore(node)
 
         if maximizing_player:
             v = float('-inf')
-            for child in node.compute_and_get_children():
-                v = max(v,self.alpha_beta_pruning(child, depth - 1, alpha, beta, False))
+            ordered_children = self.order_moves(node.compute_and_get_children(), maximizing_player)
+            for child in ordered_children:
+                v = max(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, False, transposition_table))
                 alpha = max(alpha, v)
                 if beta <= alpha:
                     break  # Beta cutoff
@@ -97,12 +121,37 @@ class PlayerControllerMinimax(PlayerController):
 
         else:
             v = float('inf')
-            for child in node.compute_and_get_children():
-                v = min(v,self.alpha_beta_pruning(child, depth - 1, alpha, beta, True))
+            ordered_children = self.order_moves(node.compute_and_get_children(), maximizing_player)
+            for child in ordered_children:
+                v = min(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, True, transposition_table))
                 beta = min(beta, v)
                 if beta <= alpha:
                     break  # Alpha cutoff
             return beta
+
+    def heuristicScore1(self, node):
+        score = node.state.get_player_scores()[0]-node.state.get_player_scores()[1]
+        return score
+
+    def heuristicScore2(self, node):
+
+        score = 0
+        my_position = node.state.get_hook_positions()[0]
+        opponent_position = node.state.get_hook_positions()[1]
+
+        fish_positions = node.state.get_fish_positions()
+        fish_scores = node.state.get_fish_scores()
+
+        for fish in fish_positions:
+            my_dist = self.distance(my_position,fish_positions[fish])
+            opponent_dist = self.distance(opponent_position,fish_positions[fish])
+            if my_dist <= opponent_dist:
+                score += fish_scores[fish]/(my_dist+ADD_TERM)**2
+            else:
+                score -= 0.5*fish_scores[fish] / (opponent_dist + ADD_TERM)**2
+        score += node.state.get_player_scores()[0]-node.state.get_player_scores()[1]
+
+        return score
 
     def heuristicScore(self, node):
 
@@ -130,4 +179,15 @@ class PlayerControllerMinimax(PlayerController):
             return x_dist + y_dist
         elif method == 'euclidean':
             return sqrt(x_dist ** 2 + y_dist ** 2)
+
+    def order_moves(self, children, maximizing_player, initial_move=False):
+        # Implement your move ordering heuristic here.
+        # You can sort the children based on some evaluation function.
+        if initial_move:
+            return sorted(children, key=lambda child: self.heuristicScore(child[0]), reverse=True)
+        else:
+            if maximizing_player:
+                return sorted(children, key=lambda child: self.heuristicScore(child), reverse=True)
+            else:
+                return sorted(children, key=lambda child: self.heuristicScore(child), reverse=False)
 
