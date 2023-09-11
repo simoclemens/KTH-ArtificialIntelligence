@@ -70,25 +70,31 @@ class PlayerControllerMinimax(PlayerController):
 
         children = initial_tree_node.compute_and_get_children()
 
+        ordered_children = sorted(children, key=lambda x: self.heuristicScore(x),reverse=True)
+
         max_score = float("-inf")
         max_index = -1
 
-        for i,child in enumerate(children):
+        for i,child in enumerate(ordered_children):
             score = self.alpha_beta_pruning(child, DEPTH-1, max_score, float('+inf'), False)
             if score > max_score:
                 max_score = score
                 max_index = i
+        best_move = ordered_children[max_index].move
 
-        return ACTION_TO_STR[max_index]
+        return ACTION_TO_STR[best_move]
 
     def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player):
 
-        if depth == 0:
+        children = node.compute_and_get_children()
+
+        if depth == 0 or len(children) == 0:
             return self.heuristicScore(node)
 
         if maximizing_player:
             v = float('-inf')
-            for child in node.compute_and_get_children():
+            ordered_children = sorted(children, key=lambda x: self.heuristicScore(x),reverse=True)
+            for child in ordered_children:
                 v = max(v,self.alpha_beta_pruning(child, depth - 1, alpha, beta, False))
                 alpha = max(alpha, v)
                 if beta <= alpha:
@@ -97,8 +103,9 @@ class PlayerControllerMinimax(PlayerController):
 
         else:
             v = float('inf')
-            for child in node.compute_and_get_children():
-                v = min(v,self.alpha_beta_pruning(child, depth - 1, alpha, beta, True))
+            ordered_children = sorted(children, key=lambda x: self.heuristicScore(x), reverse=False)
+            for child in ordered_children:
+                v = min(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, True))
                 beta = min(beta, v)
                 if beta <= alpha:
                     break  # Alpha cutoff
@@ -130,4 +137,6 @@ class PlayerControllerMinimax(PlayerController):
             return x_dist + y_dist
         elif method == 'euclidean':
             return sqrt(x_dist ** 2 + y_dist ** 2)
+
+
 
