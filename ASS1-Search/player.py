@@ -10,7 +10,7 @@ import time
 
 GRID_DIM = 20
 DEPTH = 7
-ADD_TERM = 0.5
+ADD_TERM = 0.1
 
 
 class PlayerControllerHuman(PlayerController):
