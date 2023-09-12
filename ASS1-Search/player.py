@@ -5,8 +5,11 @@ from fishing_game_core.game_tree import Node, State
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 from math import sqrt
+
+import time
+
 GRID_DIM = 20
-DEPTH = 4
+DEPTH = 7
 ADD_TERM = 1
 
 
@@ -54,6 +57,18 @@ class PlayerControllerMinimax(PlayerController):
             # Execute next action
             self.sender({"action": best_move, "search_time": None})
 
+    def start_clock(self):
+        self.start_time = time.time()
+    
+    def time_elapsed(self):
+        return time.time() - self.start_time
+    
+    def is_time_up(self: float):
+        
+        is_up = self.time_elapsed() >= self.cutoff_time*0.001
+        #if is_up: print('times_up')
+        return is_up
+
     def search_best_next_move(self, initial_tree_node):
         """
         Use minimax (and extensions) to find best possible next move for player 0 (green boat)
@@ -67,34 +82,67 @@ class PlayerControllerMinimax(PlayerController):
 
         # NOTE: Don't forget to initialize the children of the current node
         #       with its compute_and_get_children() method!
+        
+        self.start_clock()
+        self.cutoff_time = 60
 
-        children = initial_tree_node.compute_and_get_children()
+        index = self.ids(initial_tree_node)
+        best_move = self.order_children(initial_tree_node)[index].move
 
-        ordered_children = sorted(children, key=lambda x: self.heuristicScore(x),reverse=True)
-
+        return ACTION_TO_STR[best_move]
+    
+    def order_children(self, node, is_max=True):
+        children = node.compute_and_get_children()
+        return sorted(children, key=lambda x: self.heuristicScore(x),reverse=is_max)
+    
+    def ids(self, node):
+        # iterative deepening search
+        
         max_score = float("-inf")
         max_index = -1
 
-        for i,child in enumerate(ordered_children):
-            score = self.alpha_beta_pruning(child, DEPTH-1, max_score, float('+inf'), False)
+        for depth in range(1, DEPTH+1):
+            score, index = self.dls(node, depth)
             if score > max_score:
                 max_score = score
-                max_index = i
-        best_move = ordered_children[max_index].move
+                max_index = index
+ 
+        return max_index
 
-        return ACTION_TO_STR[best_move]
+    def dls(self, node, depth):
+        max_score = float("-inf")
+        max_index = -1
+
+        if not depth == 0 or not self.is_time_up(): 
+            children = node.compute_and_get_children()
+
+            ordered_children = sorted(children, key=lambda x: self.heuristicScore(x),reverse=True)
+            
+
+            for i, child in enumerate(ordered_children):
+                if self.is_time_up():
+                    return max_score, max_index
+                
+                score = self.alpha_beta_pruning(child, depth, max_score, float('+inf'), False)
+                if score > max_score:
+                    max_score = score
+                    max_index = i
+
+        return max_score, max_index
+
 
     def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player):
-
         children = node.compute_and_get_children()
 
-        if depth == 0 or len(children) == 0:
+        if depth == 0 or len(children) == 0 or self.is_time_up():
             return self.heuristicScore(node)
 
         if maximizing_player:
             v = float('-inf')
             ordered_children = sorted(children, key=lambda x: self.heuristicScore(x),reverse=True)
             for child in ordered_children:
+                if self.is_time_up():
+                    return self.heuristicScore(node)
                 v = max(v,self.alpha_beta_pruning(child, depth - 1, alpha, beta, False))
                 alpha = max(alpha, v)
                 if beta <= alpha:
@@ -105,6 +153,8 @@ class PlayerControllerMinimax(PlayerController):
             v = float('inf')
             ordered_children = sorted(children, key=lambda x: self.heuristicScore(x), reverse=False)
             for child in ordered_children:
+                if self.is_time_up():
+                    return self.heuristicScore(node)
                 v = min(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, True))
                 beta = min(beta, v)
                 if beta <= alpha:
@@ -125,6 +175,8 @@ class PlayerControllerMinimax(PlayerController):
             opponent_dist = self.distance(opponent_position, fish_positions[fish])
             score += fish_scores[fish]/(my_dist+ADD_TERM) - 0.25*fish_scores[fish]/(opponent_dist + ADD_TERM)
         score += node.state.get_player_scores()[0]-node.state.get_player_scores()[1]
+        if score < 0:
+            score = 0
 
         return score
 
