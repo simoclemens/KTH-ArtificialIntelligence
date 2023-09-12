@@ -10,7 +10,7 @@ import time
 
 GRID_DIM = 20
 DEPTH = 7
-ADD_TERM = 1
+ADD_TERM = 0.5
 
 
 class PlayerControllerHuman(PlayerController):
@@ -84,7 +84,7 @@ class PlayerControllerMinimax(PlayerController):
         #       with its compute_and_get_children() method!
         
         self.start_clock()
-        self.cutoff_time = 60
+        self.cutoff_time = 59
 
         index = self.ids(initial_tree_node)
         best_move = self.order_children(initial_tree_node)[index].move
@@ -189,6 +189,5 @@ class PlayerControllerMinimax(PlayerController):
             return x_dist + y_dist
         elif method == 'euclidean':
             return sqrt(x_dist ** 2 + y_dist ** 2)
-
 
 
