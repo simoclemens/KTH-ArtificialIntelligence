@@ -12,6 +12,8 @@ GRID_DIM = 20
 DEPTH = 10
 W1 = 2.5
 W2 = 0.5
+DEBUG = False
+TIME = 75
 
 
 class PlayerControllerHuman(PlayerController):
@@ -68,7 +70,6 @@ class PlayerControllerMinimax(PlayerController):
     def is_time_up(self: float):
 
         is_up = self.time_elapsed() >= self.cutoff_time * 0.001
-        # if is_up: print('times_up')
         return is_up
 
     def search_best_next_move(self, initial_tree_node):
@@ -86,10 +87,12 @@ class PlayerControllerMinimax(PlayerController):
         #       with its compute_and_get_children() method!
 
         self.start_clock()
-        self.cutoff_time = 59
+        self.cutoff_time = TIME
+        self.hash_time = 0
 
         index = self.ids(initial_tree_node)
         best_move = self.order_children(initial_tree_node)[index].move
+        if DEBUG: print('Hash time: ', self.hash_time*1000)
 
         return ACTION_TO_STR[best_move]
 
@@ -106,14 +109,14 @@ class PlayerControllerMinimax(PlayerController):
         max_index = -1
 
         for depth in range(1, DEPTH + 1):
-            score, index = self.dls(node, depth, self.transposition_table)
+            score, index = self.dls(node, depth)
             if score > max_score:
                 max_score = score
                 max_index = index
 
         return max_index
 
-    def dls(self, node, depth, transposition_table):
+    def dls(self, node, depth):
         max_score = float("-inf")
         max_index = -1
 
@@ -126,26 +129,26 @@ class PlayerControllerMinimax(PlayerController):
                 if self.is_time_up():
                     return max_score, max_index
 
-                score = self.alpha_beta_pruning(child, depth, max_score, float('+inf'), False, transposition_table)
+                score = self.alpha_beta_pruning(child, depth, max_score, float('+inf'), False)
                 if score > max_score:
                     max_score = score
                     max_index = i
 
         return max_score, max_index
 
-    def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player, transposition_table):
+    def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player):
 
         h = self.get_hash_state(node)
 
-        if h in transposition_table \
-                and depth <= transposition_table[h][0]:
-            return transposition_table[h][1]
+        if h in self.transposition_table \
+                and depth <= self.transposition_table[h][0]:
+            return self.transposition_table[h][1]
 
         children = node.compute_and_get_children()
 
         if depth == 0 or len(children) == 0 or self.is_time_up():
             score = self.heuristicScore(node)
-            transposition_table[h] = (depth, score)
+            self.transposition_table[h] = (depth, score)
             return score
 
         if maximizing_player:
@@ -155,7 +158,7 @@ class PlayerControllerMinimax(PlayerController):
                 if self.is_time_up():
                     return self.heuristicScore(node)
 
-                v = max(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, False, transposition_table))
+                v = max(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, False))
                 alpha = max(alpha, beta)
 
                 if beta <= alpha:
@@ -168,13 +171,13 @@ class PlayerControllerMinimax(PlayerController):
                 if self.is_time_up():
                     return self.heuristicScore(node)
 
-                v = min(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, True, transposition_table))
+                v = min(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, True))
                 beta = min(beta, v)
 
                 if beta <= alpha:
                     break  # Alpha cutoff
 
-        transposition_table.update({h:(depth,v)})
+        self.transposition_table.update({h:(depth,v)})
         return v
 
     def heuristicScore(self, node):
@@ -183,9 +186,16 @@ class PlayerControllerMinimax(PlayerController):
         state = node.state
         my_position = node.state.get_hook_positions()[0]
         opponent_position = node.state.get_hook_positions()[1]
+        my_caught, opponent_caught = node.state.get_caught()
 
         h = 0
         for i, coord in state.fish_positions.items():
+            if my_caught and i == my_caught:
+                score += state.fish_scores[i] - 0.1
+                continue
+            if opponent_caught and i == opponent_caught:
+                score -= state.fish_scores[i] - 0.1
+                continue
             h = max(h, state.fish_scores[i] * (exp(-self.distance(my_position, coord) - W2 *exp(-self.distance(opponent_position, coord)))))
 
         score += node.state.get_player_scores()[0] - node.state.get_player_scores()[1]
@@ -203,12 +213,13 @@ class PlayerControllerMinimax(PlayerController):
             return sqrt(x_dist ** 2 + y_dist ** 2)
 
     def get_hash_state(self, node):
+        start = time.time()
         state = node.state
         fish_pos = state.get_fish_positions()
         hook_pos = state.get_hook_positions()
-        fish_score = state.get_fish_scores()
-        composite_key = {
-            "{:02d}{:02d}".format(fish_pos[0], fish_pos[1]): fish_score[fish_idx]
-            for fish_idx, fish_pos in fish_pos.items()
-        }
-        return str(hook_pos) + str(composite_key)
+
+        composite_key = fish_pos
+
+        s =  str(hook_pos) + str(composite_key)
+        self.hash_time += time.time() - start
+        return s
