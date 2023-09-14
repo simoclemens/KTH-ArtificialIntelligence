@@ -4,14 +4,13 @@ import random
 from fishing_game_core.game_tree import Node, State
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
-from math import sqrt, e, exp
+from math import sqrt, e
 
 import time
 
 GRID_DIM = 20
 DEPTH = 10
-W1 = 2.5
-W2 = 0.5
+ADD_TERM = 0.1
 
 
 class PlayerControllerHuman(PlayerController):
@@ -161,8 +160,11 @@ class PlayerControllerMinimax(PlayerController):
                 if beta <= alpha:
                     break  # Beta cutoff
 
+            transposition_table[h] = (depth, v)
+            return alpha
+
         else:
-            v = float('+inf')
+            v = float('inf')
             ordered_children = sorted(children, key=lambda x: self.heuristicScore(x), reverse=False)
             for child in ordered_children:
                 if self.is_time_up():
@@ -174,23 +176,25 @@ class PlayerControllerMinimax(PlayerController):
                 if beta <= alpha:
                     break  # Alpha cutoff
 
-        transposition_table.update({h:(depth,v)})
-        return v
+            transposition_table[h] = (depth, v)
+            return beta
 
     def heuristicScore(self, node):
 
         score = 0
-        state = node.state
         my_position = node.state.get_hook_positions()[0]
         opponent_position = node.state.get_hook_positions()[1]
 
-        h = 0
-        for i, coord in state.fish_positions.items():
-            h = max(h, state.fish_scores[i] * (exp(-self.distance(my_position, coord) - W2 *exp(-self.distance(opponent_position, coord)))))
+        fish_positions = node.state.get_fish_positions()
+        fish_scores = node.state.get_fish_scores()
 
+        for fish in fish_positions:
+            my_dist = self.distance(my_position, fish_positions[fish])
+            opponent_dist = self.distance(opponent_position, fish_positions[fish])
+            score += fish_scores[fish] / (my_dist + ADD_TERM) - 0.25 * fish_scores[fish] / (opponent_dist + ADD_TERM)
         score += node.state.get_player_scores()[0] - node.state.get_player_scores()[1]
 
-        return W1 * score + h
+        return score
 
     def distance(self, hook_position, fish_position, method='n_moves'):
 
@@ -202,13 +206,13 @@ class PlayerControllerMinimax(PlayerController):
         elif method == 'euclidean':
             return sqrt(x_dist ** 2 + y_dist ** 2)
 
-    def get_hash_state(self, node):
+    def get_hash_state(self,node):
         state = node.state
-        fish_pos = state.get_fish_positions()
-        hook_pos = state.get_hook_positions()
-        fish_score = state.get_fish_scores()
-        composite_key = {
-            "{:02d}{:02d}".format(fish_pos[0], fish_pos[1]): fish_score[fish_idx]
-            for fish_idx, fish_pos in fish_pos.items()
-        }
-        return str(hook_pos) + str(composite_key)
+        player = state.get_player()
+        fish_positions = {}
+        for fish_pos, fish_score in zip(state.get_fish_positions().items(), state.get_fish_scores().items()):
+            xy_pos = str(fish_pos[0]) + str(fish_pos[1])
+            fish_positions[xy_pos] = fish_score[1]
+        return str(state.get_hook_positions()) + str(fish_positions) + str(player)
+
+

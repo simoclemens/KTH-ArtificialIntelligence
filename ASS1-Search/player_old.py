@@ -5,9 +5,8 @@ from fishing_game_core.game_tree import Node, State
 from fishing_game_core.player_utils import PlayerController
 from fishing_game_core.shared import ACTION_TO_STR
 from math import sqrt
-
 GRID_DIM = 20
-DEPTH = 1
+DEPTH = 5
 ADD_TERM = 1
 
 
@@ -69,33 +68,21 @@ class PlayerControllerMinimax(PlayerController):
         # NOTE: Don't forget to initialize the children of the current node
         #       with its compute_and_get_children() method!
 
-        # generate children from root node
-        best_move = 0
         children = initial_tree_node.compute_and_get_children()
-        """
-        # transform them into tuples to keep original index after ordering
-        children_tuples = []
-        for i, child in enumerate(children):
-            child = (child, i)
-            children_tuples.append(child)
-            
-        """
-        # order moves based on heuristic
-        #ordered_children = self.order_moves(children, True)
-        ordered_children = children
 
-        # initialize max_score (alpha) and index
+        ordered_children = sorted(children, key=lambda x: self.heuristicScore(x),reverse=True)
         alpha = float("-inf")
         beta = float("+inf")
         max_index = -1
 
-        # initialize transposition table
-        transposition_table = {}
-
-        # iterate over the ordered root's children
-        for i,child in enumerate(ordered_children):
-            score = self.alpha_beta_pruning(child, DEPTH-1, alpha, beta, False, transposition_table)
-            print(score)
+        '''
+        for iteration in range(2, DEPTH+1):
+            if alpha >= 18:
+                break
+            else:
+        '''
+        for i, child in enumerate(ordered_children):
+            score = self.alpha_beta_pruning(child, DEPTH-1, alpha, beta, False)
             if score > alpha:
                 alpha = score
                 max_index = i
@@ -104,54 +91,42 @@ class PlayerControllerMinimax(PlayerController):
 
         return ACTION_TO_STR[best_move]
 
+    def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player):
 
-    def alpha_beta_pruning(self, node, depth, alpha, beta, maximizing_player, transposition_table):
+        '''
+        available_points = 0
+        fish_positions = node.state.get_fish_positions()
+        fish_scores = node.state.get_fish_scores()
+        for fish in fish_positions:
+            available_points += fish_scores[fish]
+        '''
+        children = node.compute_and_get_children()
+
+        if len(children) == 0:
+            return self.heuristicScore(node)
+
         if depth == 0:
             return self.heuristicScore(node)
 
         if maximizing_player:
             v = float('-inf')
-            ordered_children = self.order_moves(node.compute_and_get_children(), maximizing_player)
+            ordered_children = sorted(children, key=lambda x: self.heuristicScore(x),reverse=True)
             for child in ordered_children:
-                v = max(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, False, transposition_table))
+                v = max(v,self.alpha_beta_pruning(child, depth - 1, alpha, beta, False))
                 alpha = max(alpha, v)
-                if beta <= alpha:
+                if beta <= alpha or alpha > 18:
                     break  # Beta cutoff
             return alpha
 
         else:
             v = float('inf')
-            ordered_children = self.order_moves(node.compute_and_get_children(), maximizing_player)
+            ordered_children = sorted(children, key=lambda x: self.heuristicScore(x), reverse=False)
             for child in ordered_children:
-                v = min(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, True, transposition_table))
+                v = min(v, self.alpha_beta_pruning(child, depth - 1, alpha, beta, True))
                 beta = min(beta, v)
-                if beta <= alpha:
+                if beta <= alpha or alpha > 18:
                     break  # Alpha cutoff
             return beta
-
-    def heuristicScore1(self, node):
-        score = node.state.get_player_scores()[0]-node.state.get_player_scores()[1]
-        return score
-
-    def heuristicScore2(self, node):
-
-        score = 0
-        my_position = node.state.get_hook_positions()[0]
-        opponent_position = node.state.get_hook_positions()[1]
-
-        fish_positions = node.state.get_fish_positions()
-        fish_scores = node.state.get_fish_scores()
-
-        for fish in fish_positions:
-            my_dist = self.distance(my_position,fish_positions[fish])
-            opponent_dist = self.distance(opponent_position,fish_positions[fish])
-            if my_dist <= opponent_dist:
-                score += fish_scores[fish]/(my_dist+ADD_TERM)**2
-            else:
-                score -= 0.5*fish_scores[fish] / (opponent_dist + ADD_TERM)**2
-        score += node.state.get_player_scores()[0]-node.state.get_player_scores()[1]
-
-        return score
 
     def heuristicScore(self, node):
 
@@ -165,29 +140,48 @@ class PlayerControllerMinimax(PlayerController):
         for fish in fish_positions:
             my_dist = self.distance(my_position,fish_positions[fish])
             opponent_dist = self.distance(opponent_position, fish_positions[fish])
-            score += fish_scores[fish]/(my_dist+ADD_TERM) - 0.25*fish_scores[fish]/(opponent_dist + ADD_TERM)
+            if my_dist == 0:
+                score += fish_scores[fish]
+            else:
+                score += fish_scores[fish]/(my_dist+ADD_TERM) - 0.25*fish_scores[fish]/(opponent_dist + ADD_TERM)
         score += node.state.get_player_scores()[0]-node.state.get_player_scores()[1]
+
+        if score < 0:
+            score = 0
 
         return score
 
-    def distance(self, hook_position, fish_position, method='n_moves'):
+    def distance(self, hook_position, fish_position, method='manhattan'):
 
         x_dist = min((hook_position[0] - fish_position[0]) % GRID_DIM, (fish_position[0] - hook_position[0]) % GRID_DIM)
         y_dist = abs(fish_position[1] - hook_position[1])
 
-        if method == 'n_moves':
+        if method == 'manhattan':
             return x_dist + y_dist
         elif method == 'euclidean':
             return sqrt(x_dist ** 2 + y_dist ** 2)
 
-    def order_moves(self, children, maximizing_player, initial_move=False):
-        # Implement your move ordering heuristic here.
-        # You can sort the children based on some evaluation function.
-        if initial_move:
-            return sorted(children, key=lambda child: self.heuristicScore(child[0]), reverse=True)
-        else:
-            if maximizing_player:
-                return sorted(children, key=lambda child: self.heuristicScore(child), reverse=True)
-            else:
-                return sorted(children, key=lambda child: self.heuristicScore(child), reverse=False)
+    def quiescence_search(self, node, alpha, beta):
+        # Evaluate the current position using a static evaluation function
+        evaluation = self.heuristicScore(node)
 
+        # If the position is quiet (e.g., no significant tactical threats), return the evaluation
+        if evaluation >= beta:
+            return beta
+        if alpha < evaluation:
+            alpha = evaluation
+
+        # Generate all possible captures and non-capture moves
+        children = node.compute_and_get_children()
+
+        for child in children:
+            # Make the move and recursively search the resulting position
+            score = - self.quiescence_search(child, -beta, -alpha)
+
+            # Update alpha and beta
+            if score >= beta:
+                return beta
+            if score > alpha:
+                alpha = score
+
+        return alpha
