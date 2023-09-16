@@ -1,17 +1,7 @@
 import sys
 
-
-def vector_prod(mat1, mat2):
-
-    res = 0
-
-    for i in range(len(mat1)):
-        res += mat1[i] * mat2[i]
-
-    return res
-
-
-lines = open(sys.argv[1]).readlines()
+# lines = open(sys.argv[1]).readlines()
+lines = sys.stdin.readlines()
 
 # transition matrix
 A = []
@@ -53,7 +43,7 @@ N = len(A)
 alpha = [[0 for _ in range(N)] for _ in range(T)]
 
 for i in range(N):
-    alpha[0][i] = vector_prod(p0, B[:][obs[0]])
+    alpha[0][i] = p0[i] * B[i][obs[0]]
 
 for t in range(1, T):
     for i in range(N):

@@ -12,7 +12,7 @@ def matrix_prod(mat1,mat2):
 
     return res
 
-
+#lines = open(sys.argv[1]).readlines()
 lines = sys.stdin.readlines()
 
 # transition matrix
