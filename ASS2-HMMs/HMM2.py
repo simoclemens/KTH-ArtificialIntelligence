@@ -11,7 +11,8 @@ def vector_prod(mat1, mat2):
     return res
 
 
-lines = open(sys.argv[1]).readlines()
+# lines = open(sys.argv[1]).readlines()
+lines = sys.stdin.readlines()
 
 # transition matrix
 A = []
@@ -50,19 +51,33 @@ obs = [int(i) for i in elems4[1:]]
 T = len(obs)
 N = len(A)
 
-alpha = [[0 for _ in range(N)] for _ in range(T)]
+delta = [[0 for _ in range(N)] for _ in range(T)]
+delta_idx = [[0 for _ in range(N)] for _ in range(T)]
 
 for i in range(N):
-    alpha[0][i] = vector_prod(p0, B[:][obs[0]])
+    delta[0][i] = p0[i] * B[i][obs[0]]
 
 for t in range(1, T):
     for i in range(N):
+        tmp = []
         for j in range(N):
-            alpha[t][i] += alpha[t - 1][j] * A[j][i] * B[i][obs[t]]
+            tmp.append(A[j][i] * delta[t-1][j] * B[i][obs[t]])
+        delta[t][i] = max(tmp)
+        delta_idx[t][i] = tmp.index(max(tmp))
 
-out = sum(alpha[:][T-1])
+state_est = [0 for _ in range(T)]
 
-print(out)
+state_est[T-1] = delta[T-1].index(max(delta[T-1]))
+
+for t in range(T-2,-1,-1):
+    state_est[t] = int(delta_idx[t+1][state_est[t+1]])
+
+for i in range(T):
+    print(state_est[i], end=" ")
+
+
+
+
 
 
 
