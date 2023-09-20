@@ -1,7 +1,7 @@
 import sys
 
-# lines = open(sys.argv[1]).readlines()
-lines = sys.stdin.readlines()
+lines = open(sys.argv[1]).readlines()
+# lines = sys.stdin.readlines()
 
 # transition matrix
 A = []
@@ -50,7 +50,7 @@ for t in range(1, T):
         for j in range(N):
             alpha[t][i] += alpha[t - 1][j] * A[j][i] * B[i][obs[t]]
 
-out = sum(alpha[:][T-1])
+out = sum(alpha[T-1])
 
 print(out)
 
