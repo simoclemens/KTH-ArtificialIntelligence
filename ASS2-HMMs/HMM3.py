@@ -1,8 +1,8 @@
 import sys
 import math
 
-lines = open(sys.argv[1]).readlines()
-#lines = sys.stdin.readlines()
+#lines = open(sys.argv[1]).readlines()
+lines = sys.stdin.readlines()
 
 # transition matrix
 A = []
@@ -41,14 +41,15 @@ obs = [int(i) for i in elems4[1:]]
 T = len(obs)
 N = len(A)
 K = len(B[0])
-MAX_ITER = 40
+MAX_ITER = 20
 
 mle = float("-inf")
 mle_new = float("-inf")
 iteration = 0
 
-while (mle_new > mle or mle_new==float("-inf")) and iteration <= MAX_ITER:
-    print(mle_new)
+# while (mle_new > mle or mle_new == float("-inf")) and iteration <= MAX_ITER:
+while iteration <= MAX_ITER:
+    mle = mle_new
     iteration += 1
 
     # ALPHA
@@ -121,17 +122,22 @@ while (mle_new > mle or mle_new==float("-inf")) and iteration <= MAX_ITER:
 
     # A update
     for i in range(N):
-        den = sum(gamma[:T-1][i])
+        den = 0
+        for t in range(T-1):
+            den += gamma[t][i]
         for j in range(N):
-            num = sum(di_gamma[:T-1][i][j])
+            num = 0
+            for t in range(T-1):
+                num += di_gamma[t][i][j]
             A[i][j] = num / den
 
     # B update
     for i in range(N):
-        den = sum(gamma[:][i])
         for k in range(K):
+            den = 0
             num = 0
             for t in range(T):
+                den += gamma[t][i]
                 if obs[t] == k:
                     num += gamma[t][i]
             B[i][k] = num / den
