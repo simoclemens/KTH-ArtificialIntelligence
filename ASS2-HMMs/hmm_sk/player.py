@@ -3,6 +3,7 @@
 from player_controller_hmm import PlayerControllerHMMAbstract
 from constants import *
 import random
+import math
 
 
 class PlayerControllerHMM(PlayerControllerHMMAbstract):
@@ -40,7 +41,7 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         """
         pass
 
-    def trainModel(self,A,B,obs):
+    def trainModel(self, A, B, p0, obs):
 
         T = len(obs)
         N = len(A)
@@ -51,8 +52,7 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         mle_new = float("-inf")
         iteration = 0
 
-        # while (mle_new > mle or mle_new == float("-inf")) and iteration <= MAX_ITER:
-        while iteration <= MAX_ITER:
+        while (mle_new > mle or mle_new == float("-inf")) and iteration <= MAX_ITER:
             mle = mle_new
             iteration += 1
 
@@ -146,15 +146,4 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
                             num += gamma[t][i]
                     B[i][k] = num / den
 
-        out1 = ""
-        out1 += str(N) + " " + str(N)
-        for i in range(N):
-            for j in range(N):
-                out1 += " " + str(A[i][j])
-        out1 += "\n"
-
-        out2 = ""
-        out1 += str(N) + " " + str(K)
-        for i in range(N):
-            for j in range(K):
-                out1 += " " + str(B[i][j])
+        return A, B, p0
