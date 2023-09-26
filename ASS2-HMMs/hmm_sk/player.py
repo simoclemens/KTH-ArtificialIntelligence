@@ -4,17 +4,59 @@ from player_controller_hmm import PlayerControllerHMMAbstract
 from constants import *
 import random
 import math
+import numpy as np
 
 
 class PlayerControllerHMM(PlayerControllerHMMAbstract):
+    def __init__(self):
+        super().__init__()
+        self.revealed_fish = None
+        self.probabilities = None
+        self.observations = None
+        self.models = None
+
     def init_parameters(self):
+        models = 0
         """
         In this function you should initialize the parameters you will need,
         such as the initialization of models, or fishes, among others.
         """
-        pass
+
+        # init one model for each fish type
+        self.models = [HMMModel() for _ in range(7)]
+
+        # create the observations matrix, with one line for each type of fish
+        self.observations = [[] for _ in range(70)]
+
+        # create probabilities matrix, with one row per type and one column per fish
+        self.probabilities = [[0 for _ in range(70)] for _ in range(7)]
+
+        # create a list of seven lists, each one containing the fishes of the given type
+        self.revealed_fish = [[] for _ in range(7)]
+
+    def fish_obs_seqs(self):
+        # observation sequences for all fish
+        transposed_observations = [list(col) for col in zip(*self.observations)]
+        return transposed_observations
+
+    def insert_obs(self, observations):
+        for i, obs in enumerate(observations):
+            self.observations[i].append(obs)
+
+    def argmax_matrix(self):
+        max_prob = -1
+        coord = (0, 0)
+
+        for i, seq in enumerate(self.probabilities):
+            for j, prob in enumerate(seq):
+                if prob > max_prob:
+                    max_prob = prob
+                    coord = (i, j)
+
+        return coord
 
     def guess(self, step, observations):
+
         """
         This method gets called on every iteration, providing observations.
         Here the player should process and store this information,
@@ -24,10 +66,19 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         :return: None or a tuple (fish_id, fish_type)
         """
 
-        # This code would make a random guess on each step:
-        return step % N_FISH, random.randint(0, N_SPECIES - 1)
+        self.insert_obs(observations)
 
-        # return None
+        for i, obs in enumerate(self.observations):
+            for j, m in enumerate(self.models):
+                self.probabilities[j][i] = m.compute_seq_prob(obs)
+
+        # max_index = np.argmax(self.probabilities)
+
+        fish_id, fish_type = self.argmax_matrix()
+
+        # fish_id, fish_type = divmod(max_index, 70)
+
+        return fish_id, fish_type
 
     def reveal(self, correct, fish_id, true_type):
         """
@@ -39,9 +90,32 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         :param true_type: the correct type of the fish
         :return:
         """
-        pass
 
-    def trainModel(self, A, B, p0, obs):
+        self.revealed_fish[true_type].append(fish_id)
+
+        if len(self.observations[0]) > 2:
+            for i, m in enumerate(self.models):
+                for index in self.revealed_fish[i]:
+                    m.train(self.observations[index])
+
+
+def normalize(matrix, axis=1):
+    matrix /= matrix.sum(axis=axis, keepdims=True)
+    return matrix
+
+
+class HMMModel:
+    def __init__(self, hidden_states=2, n_obs=8):
+        self.A = normalize(np.random.rand(hidden_states, hidden_states)).tolist()
+        self.B = normalize(np.random.rand(hidden_states, n_obs)).tolist()
+        self.p = normalize(np.random.rand(hidden_states), axis=0).tolist()
+
+    def train(self, obs):
+
+        # class -> alg
+        A = self.A
+        B = self.B
+        p0 = self.p
 
         T = len(obs)
         N = len(A)
@@ -146,4 +220,29 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
                             num += gamma[t][i]
                     B[i][k] = num / den
 
-        return A, B, p0
+        # alg -> class
+        self.A = A
+        self.B = B
+        self.p = p0
+
+    def compute_seq_prob(self, obs):
+        # class -> alg
+        A = self.A
+        B = self.B
+        p0 = self.p
+
+        T = len(obs)
+        N = len(A)
+
+        alpha = [[0 for _ in range(N)] for _ in range(T)]
+
+        for i in range(N):
+            alpha[0][i] = p0[i] * B[i][obs[0]]
+
+        for t in range(1, T):
+            for i in range(N):
+                for j in range(N):
+                    alpha[t][i] += alpha[t - 1][j] * A[j][i] * B[i][obs[t]]
+
+        out = sum(alpha[T - 1])
+        return out
