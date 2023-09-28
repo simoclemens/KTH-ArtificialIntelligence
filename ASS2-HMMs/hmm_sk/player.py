@@ -132,52 +132,51 @@ class HMMModel:
 
             # ALPHA
             # initialization
-            alpha = [[0 for _ in range(N)] for _ in range(T)]
+            alpha = np.full((T, N), -np.inf)  # Initialize to -inf for log probabilities
             c_log = []
             c = []
 
             # first row
             for i in range(N):
-                alpha[0][i] = p0[i] * B[i][obs[0]]
+                alpha[0][i] = np.log(p0[i]) + np.log(B[i][obs[0]])
 
-            c_t = 1 / sum(alpha[0])
+            c_t_log = np.logaddexp.reduce(alpha[0])  # Calculate c_t in log domain
 
             for i in range(N):
-                alpha[0][i] *= c_t
+                alpha[0][i] -= c_t_log
 
-            c.append(c_t)
-            c_log.append(math.log(c_t))
+            c_log.append(c_t_log)
 
             # computation
             for t in range(1, T):
                 for i in range(N):
-                    for j in range(N):
-                        alpha[t][i] += alpha[t - 1][j] * A[j][i]
-                    alpha[t][i] *= B[i][obs[t]]
+                    alpha[t][i] = np.logaddexp.reduce(
+                        [alpha[t - 1][j] + np.log(A[j][i]) for j in range(N)]
+                    ) + np.log(B[i][obs[t]])
 
-                c_t = 1 / sum(alpha[t])
+                c_t_log = np.logaddexp.reduce(alpha[t])  # Calculate c_t in log domain
 
                 for i in range(N):
-                    alpha[t][i] *= c_t
-                c.append(c_t)
-                c_log.append(math.log(c_t))
+                    alpha[t][i] -= c_t_log
 
-            mle_new = -sum(c_log)
+                c_log.append(c_t_log)
+
+            mle_new = -np.sum(c_log)
 
             # BETA
             # initialization
-            beta = [[0 for _ in range(N)] for _ in range(T)]
+            beta = np.full((T, N), -np.inf)  # Initialize to -inf for log probabilities
 
             # first row
             for i in range(N):
-                beta[T - 1][i] = c[T - 1]
+                beta[T - 1][i] = 0  # In log domain, 0 is equivalent to 1 (probability)
 
             # computation
             for t in range(T - 2, -1, -1):
                 for i in range(N):
-                    for j in range(N):
-                        beta[t][i] += beta[t + 1][j] * B[j][obs[t + 1]] * A[i][j]
-                    beta[t][i] *= c[t]
+                    beta[t][i] = np.logaddexp.reduce(
+                        [beta[t + 1][j] + np.log(B[j][obs[t + 1]]) + np.log(A[i][j]) for j in range(N)]
+                    )
 
             # DI-GAMMA/GAMMA
 
@@ -207,6 +206,7 @@ class HMMModel:
                     num = 0
                     for t in range(T - 1):
                         num += di_gamma[t][i][j]
+
                     A[i][j] = num / den
 
             # B update
@@ -218,6 +218,7 @@ class HMMModel:
                         den += gamma[t][i]
                         if obs[t] == k:
                             num += gamma[t][i]
+
                     B[i][k] = num / den
 
         # alg -> class
