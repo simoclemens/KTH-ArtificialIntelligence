@@ -6,6 +6,15 @@ import random
 import math
 import numpy as np
 
+def min_max_scaling(matrix):
+    min_val = np.min(matrix)
+    max_val = np.max(matrix)
+    scaled_matrix = (matrix - min_val) / (max_val - min_val)
+    return scaled_matrix
+
+def flatten_matrix(matrix):
+    return [item for sublist in matrix for item in sublist]
+
 
 class PlayerControllerHMM(PlayerControllerHMMAbstract):
     def __init__(self):
@@ -14,6 +23,7 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         self.probabilities = None
         self.observations = None
         self.models = None
+        self.guesses = None
 
     def init_parameters(self):
         models = 0
@@ -22,17 +32,25 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         such as the initialization of models, or fishes, among others.
         """
 
+        self.n_fish_types = 7
+        self.n_fishes = 70
+
         # init one model for each fish type
-        self.models = [HMMModel() for _ in range(7)]
+        self.models = [HMMModel() for _ in range(self.n_fish_types)]
 
         # create the observations matrix, with one line for each type of fish
-        self.observations = [[] for _ in range(70)]
+        self.observations = [[] for _ in range(self.n_fishes)]
 
         # create probabilities matrix, with one row per type and one column per fish
-        self.probabilities = [[0 for _ in range(70)] for _ in range(7)]
+        self.probabilities = np.random.rand(self.n_fish_types, self.n_fishes).tolist()
 
         # create a list of seven lists, each one containing the fishes of the given type
-        self.revealed_fish = [[] for _ in range(7)]
+        self.revealed_fish = [[] for _ in range(self.n_fish_types)]
+
+        self.correctly_guessed = [[] for _ in range(self.n_fish_types)] 
+
+        # keeps track of the guesses made
+        self.guesses = []
 
     def fish_obs_seqs(self):
         # observation sequences for all fish
@@ -43,17 +61,32 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         for i, obs in enumerate(observations):
             self.observations[i].append(obs)
 
-    def argmax_matrix(self):
+    def argmax_matrix(self, ignore_correctly_guessed=False, ignore_revealed=False, ignore_guessed=False):
         max_prob = -1
-        coord = (0, 0)
+        coord = (None, None)
 
+        # j is fishes, i is fish types
         for i, seq in enumerate(self.probabilities):
-            for j, prob in enumerate(seq):
+            for j, prob in enumerate(seq): 
+                if ignore_correctly_guessed and j in flatten_matrix(self.correctly_guessed):
+                    continue
+                # don't guess revealed fish
+                if ignore_revealed and j in flatten_matrix(self.revealed_fish):
+                    continue
+                # don't repeat guesses
+                if self.guesses and (i, j) in self.guesses:
+                    continue
                 if prob > max_prob:
                     max_prob = prob
                     coord = (i, j)
 
         return coord
+    
+    def revealed_but_incorrect(self):
+        for fish_type, fish_ids in enumerate(self.revealed_fish):
+            for fish_id in fish_ids:
+                if not fish_id in flatten_matrix(self.correctly_guessed):
+                    return (fish_id, fish_type)
 
     def guess(self, step, observations):
 
@@ -68,17 +101,32 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
 
         self.insert_obs(observations)
 
+        # update probabilities
         for i, obs in enumerate(self.observations):
             for j, m in enumerate(self.models):
                 self.probabilities[j][i] = m.compute_seq_prob(obs)
+        
+        # normalize
+        #self.probabilities = min_max_scaling(self.probabilities)
+        #print(self.probabilities)
 
-        # max_index = np.argmax(self.probabilities)
+        fish_type, fish_id = self.argmax_matrix(ignore_correctly_guessed=True, ignore_revealed=True, ignore_guessed=True)
+        
+        # if revealed all fish already
+        if fish_type is None:
+            guess = self.revealed_but_incorrect()
+            if not guess:
+                return None
+            (fish_id, fish_type) = guess
+        
+        prob = self.probabilities[fish_type][fish_id]
 
-        fish_id, fish_type = self.argmax_matrix()
+        guess = (fish_id, fish_type)
+        print("Guess: ", guess, " with probability: ", prob)
 
-        # fish_id, fish_type = divmod(max_index, 70)
+        self.guesses.append(guess)
 
-        return fish_id, fish_type
+        return guess
 
     def reveal(self, correct, fish_id, true_type):
         """
@@ -90,8 +138,14 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         :param true_type: the correct type of the fish
         :return:
         """
+        #self.guesses[-1] += (correct,)
+        if correct: self.correctly_guessed[true_type].append(fish_id)
 
         self.revealed_fish[true_type].append(fish_id)
+        print("Revealed fish: ", self.revealed_fish)
+
+        # train models
+        self.models = [HMMModel() for _ in range(self.n_fish_types)]
 
         if len(self.observations[0]) > 2:
             for i, m in enumerate(self.models):
@@ -111,6 +165,7 @@ class HMMModel:
         self.p = normalize(np.random.rand(hidden_states), axis=0).tolist()
 
     def train(self, obs):
+        EPSILON = 1e-10
 
         # class -> alg
         A = self.A
@@ -207,7 +262,7 @@ class HMMModel:
                     for t in range(T - 1):
                         num += di_gamma[t][i][j]
 
-                    A[i][j] = num / den
+                    A[i][j] = num / (den + EPSILON)
 
             # B update
             for i in range(N):
@@ -219,7 +274,7 @@ class HMMModel:
                         if obs[t] == k:
                             num += gamma[t][i]
 
-                    B[i][k] = num / den
+                    B[i][k] = num / (den + EPSILON)
 
         # alg -> class
         self.A = A
