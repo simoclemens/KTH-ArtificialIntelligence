@@ -14,9 +14,9 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         self.probabilities = None
         self.observations = None
         self.models = None
+        self.revealed_list = None
 
     def init_parameters(self):
-        models = 0
         """
         In this function you should initialize the parameters you will need,
         such as the initialization of models, or fishes, among others.
@@ -34,10 +34,8 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         # create a list of seven lists, each one containing the fishes of the given type
         self.revealed_fish = [[] for _ in range(7)]
 
-    def fish_obs_seqs(self):
-        # observation sequences for all fish
-        transposed_observations = [list(col) for col in zip(*self.observations)]
-        return transposed_observations
+        # create a simple list containing the indexes of fishes which have been found already
+        self.revealed_list = []
 
     def insert_obs(self, observations):
         for i, obs in enumerate(observations):
@@ -49,9 +47,10 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
 
         for i, seq in enumerate(self.probabilities):
             for j, prob in enumerate(seq):
-                if prob > max_prob:
-                    max_prob = prob
-                    coord = (i, j)
+                if j not in self.revealed_list:
+                    if prob > max_prob:
+                        max_prob = prob
+                        coord = (i, j)
 
         return coord
 
@@ -72,11 +71,7 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
             for j, m in enumerate(self.models):
                 self.probabilities[j][i] = m.compute_seq_prob(obs)
 
-        # max_index = np.argmax(self.probabilities)
-
-        fish_id, fish_type = self.argmax_matrix()
-
-        # fish_id, fish_type = divmod(max_index, 70)
+        fish_type, fish_id = self.argmax_matrix()
 
         return fish_id, fish_type
 
@@ -92,6 +87,7 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         """
 
         self.revealed_fish[true_type].append(fish_id)
+        self.revealed_list.append(fish_id)
 
         if len(self.observations[0]) > 2:
             for i, m in enumerate(self.models):
@@ -105,10 +101,10 @@ def normalize(matrix, axis=1):
 
 
 class HMMModel:
-    def __init__(self, hidden_states=2, n_obs=8):
-        self.A = normalize(np.random.rand(hidden_states, hidden_states)).tolist()
-        self.B = normalize(np.random.rand(hidden_states, n_obs)).tolist()
-        self.p = normalize(np.random.rand(hidden_states), axis=0).tolist()
+    def __init__(self, hidden_states=8, n_obs=8):
+        self.A = normalize(np.random.beta(a=1, b=1, size=(hidden_states, hidden_states))).tolist()
+        self.B = normalize(np.random.beta(a=1, b=1, size=(hidden_states, n_obs))).tolist()
+        self.p = normalize(np.random.beta(a=1, b=1, size=hidden_states), axis=0).tolist()
 
     def train(self, obs):
 
@@ -190,7 +186,9 @@ class HMMModel:
                 for i in range(N):
                     for j in range(N):
                         di_gamma[t][i][j] = alpha[t][i] * A[i][j] * B[j][obs[t + 1]] * beta[t + 1][j]
-                    gamma[t][i] = sum(di_gamma[t][i])
+                    gamma[t][i] = 0
+                    for j in range(N):
+                        gamma[t][i] += di_gamma[t][i][j]
 
             # last row
             gamma[T - 1] = alpha[T - 1]

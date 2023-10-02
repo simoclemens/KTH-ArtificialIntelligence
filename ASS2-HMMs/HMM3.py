@@ -1,8 +1,8 @@
 import sys
 import math
 
-#lines = open(sys.argv[1]).readlines()
-lines = sys.stdin.readlines()
+lines = open(sys.argv[1]).readlines()
+#lines = sys.stdin.readlines()
 
 # transition matrix
 A = []
@@ -41,7 +41,7 @@ obs = [int(i) for i in elems4[1:]]
 T = len(obs)
 N = len(A)
 K = len(B[0])
-MAX_ITER = 20
+MAX_ITER = 50
 
 mle = float("-inf")
 mle_new = float("-inf")
@@ -49,6 +49,7 @@ iteration = 0
 
 # while (mle_new > mle or mle_new == float("-inf")) and iteration <= MAX_ITER:
 while iteration <= MAX_ITER:
+    print(mle_new)
     mle = mle_new
     iteration += 1
 
@@ -159,12 +160,3 @@ for i in range(N):
 
 print(out1)
 print(out2)
-
-
-
-
-
-
-
-
-
