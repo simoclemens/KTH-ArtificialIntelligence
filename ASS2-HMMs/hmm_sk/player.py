@@ -10,49 +10,24 @@ import numpy as np
 class PlayerControllerHMM(PlayerControllerHMMAbstract):
     def __init__(self):
         super().__init__()
-        self.revealed_fish = None
-        self.probabilities = None
         self.observations = None
         self.models = None
-        self.revealed_list = None
+        self.last_obs = None
 
     def init_parameters(self):
         """
         In this function you should initialize the parameters you will need,
         such as the initialization of models, or fishes, among others.
         """
-
         # init one model for each fish type
-        self.models = [HMMModel() for _ in range(7)]
+        self.models = [HMMModel(i) for i in range(7)]
 
         # create the observations matrix, with one line for each type of fish
         self.observations = [[] for _ in range(70)]
 
-        # create probabilities matrix, with one row per type and one column per fish
-        self.probabilities = [[0 for _ in range(70)] for _ in range(7)]
-
-        # create a list of seven lists, each one containing the fishes of the given type
-        self.revealed_fish = [[] for _ in range(7)]
-
-        # create a simple list containing the indexes of fishes which have been found already
-        self.revealed_list = []
-
     def insert_obs(self, observations):
-        for i, obs in enumerate(observations):
-            self.observations[i].append(obs)
-
-    def argmax_matrix(self):
-        max_prob = -1
-        coord = (0, 0)
-
-        for i, seq in enumerate(self.probabilities):
-            for j, prob in enumerate(seq):
-                if j not in self.revealed_list:
-                    if prob > max_prob:
-                        max_prob = prob
-                        coord = (i, j)
-
-        return coord
+        for i in range(len(self.observations)):
+            self.observations[i].append(observations[i])
 
     def guess(self, step, observations):
 
@@ -67,13 +42,20 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
 
         self.insert_obs(observations)
 
-        for i, obs in enumerate(self.observations):
-            for j, m in enumerate(self.models):
-                self.probabilities[j][i] = m.compute_seq_prob(obs)
+        if step < 95:
+            return None
+        else:
+            self.last_obs = self.observations.pop()
+            fish_id = len(self.observations)
+            max_prob = -1
+            fish_type = None
+            for i, m in enumerate(self.models):
+                prob = m.compute_seq_prob(self.last_obs)
+                if prob >= max_prob:
+                    max_prob = prob
+                    fish_type = i
 
-        fish_type, fish_id = self.argmax_matrix()
-
-        return fish_id, fish_type
+            return fish_id, fish_type
 
     def reveal(self, correct, fish_id, true_type):
         """
@@ -85,26 +67,26 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
         :param true_type: the correct type of the fish
         :return:
         """
-
-        self.revealed_fish[true_type].append(fish_id)
-        self.revealed_list.append(fish_id)
-
-        if len(self.observations[0]) > 2:
-            for i, m in enumerate(self.models):
-                for index in self.revealed_fish[i]:
-                    m.train(self.observations[index])
+        if not correct:
+            self.models[true_type].train(self.last_obs)
 
 
-def normalize(matrix, axis=1):
-    matrix /= matrix.sum(axis=axis, keepdims=True)
-    return matrix
+def generate_matrix(r, c):
+    M = [[(1 / c) + np.random.rand() / 1000 for _ in range(c)] for _ in range(r)]
+    for i, row in enumerate(M):
+        div = 1/sum(row)
+        for j in range(c):
+            M[i][j] *= div
+    return M
 
 
 class HMMModel:
-    def __init__(self, hidden_states=8, n_obs=8):
-        self.A = normalize(np.random.beta(a=1, b=1, size=(hidden_states, hidden_states))).tolist()
-        self.B = normalize(np.random.beta(a=1, b=1, size=(hidden_states, n_obs))).tolist()
-        self.p = normalize(np.random.beta(a=1, b=1, size=hidden_states), axis=0).tolist()
+    def __init__(self, fish_type, hidden_states=4, n_obs=9):
+
+        self.fish_type = fish_type
+        self.A = generate_matrix(hidden_states, hidden_states)
+        self.B = generate_matrix(hidden_states, n_obs)
+        self.p = generate_matrix(1, hidden_states)[0]
 
     def train(self, obs):
 
@@ -116,13 +98,13 @@ class HMMModel:
         T = len(obs)
         N = len(A)
         K = len(B[0])
-        MAX_ITER = 20
+        MAX_ITER = 2
 
         mle = float("-inf")
         mle_new = float("-inf")
         iteration = 0
 
-        while (mle_new > mle or mle_new == float("-inf")) and iteration <= MAX_ITER:
+        while (mle_new > mle and iteration < MAX_ITER) or mle == float("-inf"):
             mle = mle_new
             iteration += 1
 
@@ -131,32 +113,37 @@ class HMMModel:
             alpha = [[0 for _ in range(N)] for _ in range(T)]
             c_log = []
             c = []
+            c0 = 0
 
             # first row
             for i in range(N):
                 alpha[0][i] = p0[i] * B[i][obs[0]]
+                c0 += alpha[0][i]
 
-            c_t = 1 / sum(alpha[0])
+            c0 = 1 / c0
 
             for i in range(N):
-                alpha[0][i] *= c_t
+                alpha[0][i] *= c0
 
-            c.append(c_t)
-            c_log.append(math.log(c_t))
+            c.append(c0)
+            c_log.append(c0)
 
             # computation
             for t in range(1, T):
+                ct = 0
                 for i in range(N):
                     for j in range(N):
                         alpha[t][i] += alpha[t - 1][j] * A[j][i]
                     alpha[t][i] *= B[i][obs[t]]
+                    ct += alpha[t][i]
 
-                c_t = 1 / sum(alpha[t])
+                ct = 1 / ct
 
                 for i in range(N):
-                    alpha[t][i] *= c_t
-                c.append(c_t)
-                c_log.append(math.log(c_t))
+                    alpha[t][i] *= ct
+
+                c.append(ct)
+                c_log.append(math.log(ct))
 
             mle_new = -sum(c_log)
 
@@ -186,9 +173,7 @@ class HMMModel:
                 for i in range(N):
                     for j in range(N):
                         di_gamma[t][i][j] = alpha[t][i] * A[i][j] * B[j][obs[t + 1]] * beta[t + 1][j]
-                    gamma[t][i] = 0
-                    for j in range(N):
-                        gamma[t][i] += di_gamma[t][i][j]
+                    gamma[t][i] = sum(di_gamma[t][i])
 
             # last row
             gamma[T - 1] = alpha[T - 1]
