@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-
 from player_controller_hmm import PlayerControllerHMMAbstract
-from constants import *
-import random
 import math
 import numpy as np
 
@@ -42,8 +39,9 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
 
         self.insert_obs(observations)
 
-        if step < 95:
+        if step < 105:
             return None
+
         else:
             self.last_obs = self.observations.pop()
             fish_id = len(self.observations)
@@ -51,7 +49,7 @@ class PlayerControllerHMM(PlayerControllerHMMAbstract):
             fish_type = None
             for i, m in enumerate(self.models):
                 prob = m.compute_seq_prob(self.last_obs)
-                if prob >= max_prob:
+                if prob > max_prob:
                     max_prob = prob
                     fish_type = i
 
@@ -81,12 +79,13 @@ def generate_matrix(r, c):
 
 
 class HMMModel:
-    def __init__(self, fish_type, hidden_states=4, n_obs=9):
+    def __init__(self, fish_type, hidden_states=2, n_obs=8):
 
         self.fish_type = fish_type
         self.A = generate_matrix(hidden_states, hidden_states)
         self.B = generate_matrix(hidden_states, n_obs)
         self.p = generate_matrix(1, hidden_states)[0]
+        self.epsilon = 1e-15
 
     def train(self, obs):
 
@@ -98,7 +97,7 @@ class HMMModel:
         T = len(obs)
         N = len(A)
         K = len(B[0])
-        MAX_ITER = 2
+        MAX_ITER = 10
 
         mle = float("-inf")
         mle_new = float("-inf")
@@ -113,37 +112,32 @@ class HMMModel:
             alpha = [[0 for _ in range(N)] for _ in range(T)]
             c_log = []
             c = []
-            c0 = 0
 
             # first row
             for i in range(N):
                 alpha[0][i] = p0[i] * B[i][obs[0]]
-                c0 += alpha[0][i]
 
-            c0 = 1 / c0
+            c_t = 1 / (sum(alpha[0])+self.epsilon)
 
             for i in range(N):
-                alpha[0][i] *= c0
+                alpha[0][i] *= c_t
 
-            c.append(c0)
-            c_log.append(c0)
+            c.append(c_t)
+            c_log.append(math.log(c_t))
 
             # computation
             for t in range(1, T):
-                ct = 0
                 for i in range(N):
                     for j in range(N):
                         alpha[t][i] += alpha[t - 1][j] * A[j][i]
                     alpha[t][i] *= B[i][obs[t]]
-                    ct += alpha[t][i]
 
-                ct = 1 / ct
+                c_t = 1 / (sum(alpha[t])+self.epsilon)
 
                 for i in range(N):
-                    alpha[t][i] *= ct
-
-                c.append(ct)
-                c_log.append(math.log(ct))
+                    alpha[t][i] *= c_t
+                c.append(c_t)
+                c_log.append(math.log(c_t))
 
             mle_new = -sum(c_log)
 
@@ -186,6 +180,7 @@ class HMMModel:
                 den = 0
                 for t in range(T - 1):
                     den += gamma[t][i]
+                den += self.epsilon
                 for j in range(N):
                     num = 0
                     for t in range(T - 1):
@@ -201,6 +196,7 @@ class HMMModel:
                         den += gamma[t][i]
                         if obs[t] == k:
                             num += gamma[t][i]
+                    den += self.epsilon
                     B[i][k] = num / den
 
         # alg -> class
