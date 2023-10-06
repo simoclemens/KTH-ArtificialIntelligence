@@ -95,13 +95,20 @@ def epsilon_greedy(Q,
                    anneal_timesteps=10000,
                    eps_type="constant"):
 
+    r = np.random.rand()
     if eps_type == 'constant':
         epsilon = epsilon_final
         # ADD YOUR CODE SNIPPET BETWEEN EX 4.1
         # Implemenmt the epsilon-greedy algorithm for a constant epsilon value
         # Use epsilon and all input arguments of epsilon_greedy you see fit
         # It is recommended you use the np.random module
-        action = None
+        best_action = Q[state, all_actions].argmax()
+
+        if r > epsilon:
+            action = best_action
+        else:
+            action = np.random.choice(all_actions)
+
         # ADD YOUR CODE SNIPPET BETWEEN EX 4.1
 
     elif eps_type == 'linear':
@@ -194,8 +201,10 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
                 # Chose an action from all possible actions
-                best_action = Q[s_current, list_pos].argmax()
-                action = list_pos[best_action]
+                eps_greedy_action = epsilon_greedy(Q, s_current, list_pos, current_total_steps, self.epsilon_initial, self.epsilon_final, self.annealing_timesteps, eps_type="constant")
+                #print(eps_greedy_action)
+                #print(list_pos)
+                action = eps_greedy_action
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX 5
