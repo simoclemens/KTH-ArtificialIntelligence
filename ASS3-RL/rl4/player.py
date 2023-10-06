@@ -96,16 +96,17 @@ def epsilon_greedy(Q,
                    eps_type="constant"):
 
     r = np.random.rand()
+
     if eps_type == 'constant':
         epsilon = epsilon_final
         # ADD YOUR CODE SNIPPET BETWEEN EX 4.1
         # Implemenmt the epsilon-greedy algorithm for a constant epsilon value
         # Use epsilon and all input arguments of epsilon_greedy you see fit
         # It is recommended you use the np.random module
-        best_action = Q[state, all_actions].argmax()
 
-        if r > epsilon:
-            action = best_action
+        if r >= epsilon:
+            action = np.nanargmax(Q[state])
+
         else:
             action = np.random.choice(all_actions)
 
@@ -121,8 +122,8 @@ def epsilon_greedy(Q,
         s = ScheduleLinear(anneal_timesteps, epsilon_final, epsilon_initial)
         epsilon_t = s.value(current_total_steps)
         
-        if r > epsilon_t:
-            action = Q[state, all_actions].argmax()
+        if r >= epsilon_t:
+            action = np.nanargmax(Q[state])
         else:
             action = np.random.choice(all_actions)
         # ADD YOUR CODE SNIPPET BETWEENEX  4.2
@@ -208,7 +209,7 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
                 # Chose an action from all possible actions
-                eps_greedy_action = epsilon_greedy(Q, s_current, list_pos, steps, self.epsilon_initial, self.epsilon_final, self.annealing_timesteps, eps_type="linear")
+                eps_greedy_action = epsilon_greedy(Q, s_current, list_pos, current_total_steps, self.epsilon_initial, self.epsilon_final, self.annealing_timesteps, eps_type="linear")
                 action = eps_greedy_action
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
 
@@ -231,7 +232,7 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX. 2.2
                 # Implement the Bellman Update equation to update Q
-                Q[s_current, action] += self.alpha * (R + self.gamma * np.nanmax(Q[s_next, list_pos]) - Q[s_current, action])
+                Q[s_current, action] += lr * (R + discount * np.nanmax(Q[s_next]) - Q[s_current, action])
                 # ADD YOUR CODE SNIPPET BETWEEN EX. 2.2
 
                 s_current = s_next
@@ -240,7 +241,7 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
             # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
             # Compute the absolute value of the mean between the Q and Q-old
-            diff = np.abs(np.nanmean(Q - Q_old))
+            diff = np.absolute(np.nanmean(Q - Q_old))
             # ADD YOUR CODE SNIPPET BETWEEN EX. 2.3
             Q_old[:] = Q
             print(
@@ -366,5 +367,5 @@ class ScheduleLinear(object):
         # ADD YOUR CODE SNIPPET BETWEEN EX 4.2
         # Return the annealed linear value
 
-        return self.initial_p - (self.initial_p - self.final_p) * t / self.schedule_timesteps
+        return self.initial_p + (self.final_p - self.initial_p) * t / self.schedule_timesteps
         # ADD YOUR CODE SNIPPET BETWEEN EX 4.2
