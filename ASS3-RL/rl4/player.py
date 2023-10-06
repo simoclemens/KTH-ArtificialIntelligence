@@ -117,8 +117,10 @@ def epsilon_greedy(Q,
         # Use epsilon and all input arguments of epsilon_greedy you see fit
         # use the ScheduleLinear class
         # It is recommended you use the np.random module
-        delta_epsilon = epsilon_final - epsilon_initial
-        epsilon_t = epsilon_initial + delta_epsilon * current_total_steps / anneal_timesteps
+
+        s = ScheduleLinear(anneal_timesteps, epsilon_final, epsilon_initial)
+        epsilon_t = s.value(current_total_steps)
+        
         if r > epsilon_t:
             action = Q[state, all_actions].argmax()
         else:
