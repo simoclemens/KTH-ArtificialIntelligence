@@ -117,7 +117,12 @@ def epsilon_greedy(Q,
         # Use epsilon and all input arguments of epsilon_greedy you see fit
         # use the ScheduleLinear class
         # It is recommended you use the np.random module
-        action = None
+        delta_epsilon = epsilon_final - epsilon_initial
+        epsilon_t = epsilon_initial + delta_epsilon * current_total_steps / anneal_timesteps
+        if r > epsilon_t:
+            action = Q[state, all_actions].argmax()
+        else:
+            action = np.random.choice(all_actions)
         # ADD YOUR CODE SNIPPET BETWEENEX  4.2
 
     else:
@@ -201,9 +206,7 @@ class PlayerControllerRL(PlayerController, FishesModelling):
 
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
                 # Chose an action from all possible actions
-                eps_greedy_action = epsilon_greedy(Q, s_current, list_pos, current_total_steps, self.epsilon_initial, self.epsilon_final, self.annealing_timesteps, eps_type="constant")
-                #print(eps_greedy_action)
-                #print(list_pos)
+                eps_greedy_action = epsilon_greedy(Q, s_current, list_pos, steps, self.epsilon_initial, self.epsilon_final, self.annealing_timesteps, eps_type="linear")
                 action = eps_greedy_action
                 # ADD YOUR CODE SNIPPET BETWEEN EX 2.1 and 2.2
 
@@ -360,5 +363,6 @@ class ScheduleLinear(object):
     def value(self, t):
         # ADD YOUR CODE SNIPPET BETWEEN EX 4.2
         # Return the annealed linear value
-        return self.initial_p
+
+        return self.initial_p - (self.initial_p - self.final_p) * t / self.schedule_timesteps
         # ADD YOUR CODE SNIPPET BETWEEN EX 4.2
