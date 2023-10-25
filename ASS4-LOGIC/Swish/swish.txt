@@ -42,28 +42,33 @@ neighbours(P1, P2, Ls) :-
 fact1(Ls) :- 
     member(p(p1,_,_,house,_), Ls).
 fact2(Ls) :- 
-%   fill here	
+	member(p(p4,_,tennis,_,_),Ls).	
 fact3(Ls) :- 
-%   fill here
+	member(p(p3,_,football,_,_),Ls).	
 fact4(Ls) :-
     member(p(_, _, football, _, employee), Ls).
 fact5(Ls) :-
-%   fill here
+    member(p(_, spring, _, _, unemployed), Ls).
 fact6(Ls) :-
-%   fill here
+   member(p(_, summer, football, _, _), Ls), member(p(_, fall, dota2, _, _), Ls), member(p(_, winter, tennis, _, _), Ls), member(p(_, spring, lol, _, _), Ls).
 fact7(Ls) :-
-%   fill here
+   member(p(_, _, dota2, house, employee), Ls).
 fact8(Ls) :-
     member(p(_, winter, _, X, Y),Ls),
     not(X == house),
     Y = student.
 fact9(Ls) :- 
-%   fill here
+    neighbours(p2, p4, Ls).
 fact10(Ls) :-
-%   fill here
+    member(p(SummerLover,summer,_,_,_),Ls), % defining the summer lover
+    neighbours(SummerLover, p2, Ls),
+    not(neighbours(SummerLover, p1, Ls)).
+    
 fact11(Ls) :- 
-%   fill here
-
+	member(p(p3, _, _,X,_),Ls), % defining apartment type
+    member(p(TennisPlayer, _, tennis, X, _),Ls), % finding tennis neighbour
+	neighbours(p3, TennisPlayer, Ls). % confirming that they are indeed neighbours
+    
 % Problem:
 friends(Ls) :-
     length(Ls, 4),						%There are 4 friends in our list Ls
